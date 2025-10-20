@@ -1,137 +1,100 @@
+# import pandas as pd
+# import re
+
+# # 1. Baca file CSV
+# df = pd.read_csv("emails.csv")
+
+# # 2. Tentukan kolom teks (ganti jika nama kolom berbeda)
+# text_col = "text"  # sesuaikan dengan nama kolom isi email di CSV kamu
+
+# # 3. Gabungkan semua teks menjadi satu string panjang
+# all_text = " ".join(df[text_col].astype(str))
+
+# # 4. Tokenisasi (pecah per kata, hanya huruf)
+# tokens = re.findall(r'\b[a-zA-Z]+\b', all_text.lower())
+
+# # 5. Simpan hasil tokenisasi ke DataFrame baru
+# df_tokens = pd.DataFrame(tokens, columns=["word"])
+
+# # 6. Simpan ke file baru
+# df_tokens.to_csv("emails_tokenized.csv", index=False)
+
+# print("✅ File berhasil ditokenisasi. Hasil disimpan di 'emails_tokenized.csv'")
+# print(df_tokens.head(20))
+
 import pandas as pd
-from sklearn.preprocessing import LabelEncoder
-from sklearn.model_selection import train_test_split
-from sklearn.naive_bayes import CategoricalNB
-import tkinter as tk
-from tkinter import ttk, messagebox
-
-# --- LANGKAH 1: Latih Model (Sama seperti main.py) ---
-# Kita perlu melatih model lagi di file ini agar UI-nya "pintar"
-
-col_names = ['buying', 'maint', 'doors', 'persons', 'lug_boot', 'safety', 'class']
-df = pd.read_csv('car_evaluation.csv', header=None, names=col_names)
-
-# Encoding data ke numerik
-encoders = {}
-df_encoded = df.copy()
-for col in df_encoded.columns:
-    le = LabelEncoder()
-    df_encoded[col] = le.fit_transform(df_encoded[col])
-    encoders[col] = le  # Simpan encoder
-
-# Ekstraksi fitur
-x = df_encoded.drop('class', axis=1)
-y = df_encoded['class']
-
-# Split data latih dan data uji (Gunakan data latih yang sama)
-X_train, X_test, Y_train, Y_test = train_test_split(x, y, test_size=0.2, random_state=42)
-
-# Latih model
-model = CategoricalNB()
-model.fit(X_train, Y_train)
-
-print("Model dan Encoders berhasil dimuat untuk UI.")
-
-# --- LANGKAH 2: Fungsi untuk Prediksi ---
-
-def lakukan_prediksi():
-    try:
-        # 1. Ambil semua nilai teks dari dropdown
-        input_teks = [
-            combo_buying.get(),
-            combo_maint.get(),
-            combo_doors.get(),
-            combo_persons.get(),
-            combo_lug_boot.get(),
-            combo_safety.get()
-        ]
-
-        # 2. Cek apakah semua sudah diisi
-        if "" in input_teks:
-            messagebox.showwarning("Input Tidak Lengkap", "Harap isi semua kolom!")
-            return
-
-        # 3. Ubah nilai teks menjadi angka menggunakan encoder
-        input_angka = []
-        input_angka.append(encoders['buying'].transform([input_teks[0]])[0])
-        input_angka.append(encoders['maint'].transform([input_teks[1]])[0])
-        input_angka.append(encoders['doors'].transform([input_teks[2]])[0])
-        input_angka.append(encoders['persons'].transform([input_teks[3]])[0])
-        input_angka.append(encoders['lug_boot'].transform([input_teks[4]])[0])
-        input_angka.append(encoders['safety'].transform([input_teks[5]])[0])
-
-        # 4. Lakukan prediksi
-        # model.predict() butuh 2D array, jadi kita masukkan ke [ ]
-        prediksi_angka = model.predict([input_angka])
-        probabilitas = model.predict_proba([input_angka])
-
-        # 5. Ubah hasil prediksi angka ke teks
-        hasil_prediksi = encoders['class'].inverse_transform(prediksi_angka)[0]
-
-        # 6. Format hasil probabilitas
-        hasil_prob_teks = ""
-        for i, class_label in enumerate(encoders['class'].classes_):
-            hasil_prob_teks += f"- {class_label}: {probabilitas[0][i]*100:.2f}%\n"
-
-        # 7. Tampilkan hasil di label
-        label_hasil.config(text=f"Hasil Prediksi:\n{hasil_prediksi.upper()} ✅\n\nProbabilitas:\n{hasil_prob_teks}")
-
-    except Exception as e:
-        messagebox.showerror("Error", f"Terjadi kesalahan: {e}")
+import re
+from collections import Counter
 
 
-# --- LANGKAH 3: Buat Jendela UI ---
+df = pd.read_csv("emails.csv")
 
-root = tk.Tk()
-root.title("Kalkulator Naive Bayes (Car Evaluation)")
+# coloumn dataset
+text_col = "text"
+label_col = "spam"
 
-# Buat frame utama
-frame = ttk.Frame(root, padding="20")
-frame.grid(row=0, column=0)
+# memisahkan coloumn yang spam dan bukan spam
+spam_emails = df[df[label_col] == 1]
+nonspam_emails = df[df[label_col] == 0]
 
-# Judul di dalam jendela
-ttk.Label(frame, text="Masukkan Atribut Mobil:", font=("Helvetica", 14, "bold")).grid(row=0, column=0, columnspan=2, pady=10)
+# Tokenisasi
+def tokenize(text):
+    return re.findall(r'\b[a-zA-Z]+\b', text.lower())
 
-# --- Membuat 6 Dropdown ---
+spam_words = []
+for text in spam_emails[text_col]:
+    spam_words.extend(tokenize(str(text)))
 
-# 1. Buying
-ttk.Label(frame, text="Buying:").grid(row=1, column=0, sticky=tk.W, pady=5)
-combo_buying = ttk.Combobox(frame, values=list(encoders['buying'].classes_))
-combo_buying.grid(row=1, column=1)
+nonspam_words = []
+for text in nonspam_emails[text_col]:
+    nonspam_words.extend(tokenize(str(text)))
 
-# 2. Maint
-ttk.Label(frame, text="Maint:").grid(row=2, column=0, sticky=tk.W, pady=5)
-combo_maint = ttk.Combobox(frame, values=list(encoders['maint'].classes_))
-combo_maint.grid(row=2, column=1)
+# Hitung frekuensi 
+spam_counts = Counter(spam_words)
+nonspam_counts = Counter(nonspam_words)
 
-# 3. Doors
-ttk.Label(frame, text="Doors:").grid(row=3, column=0, sticky=tk.W, pady=5)
-combo_doors = ttk.Combobox(frame, values=list(encoders['doors'].classes_))
-combo_doors.grid(row=3, column=1)
+# Semua kata unik
+all_words = set(spam_counts.keys()).union(set(nonspam_counts.keys()))
 
-# 4. Persons
-ttk.Label(frame, text="Persons:").grid(row=4, column=0, sticky=tk.W, pady=5)
-combo_persons = ttk.Combobox(frame, values=list(encoders['persons'].classes_))
-combo_persons.grid(row=4, column=1)
+# Hitung probabilitas Bayes 
+total_spam_words = sum(spam_counts.values())
+total_nonspam_words = sum(nonspam_counts.values())
+total_words = total_spam_words + total_nonspam_words
 
-# 5. Lug Boot
-ttk.Label(frame, text="Lug Boot:").grid(row=5, column=0, sticky=tk.W, pady=5)
-combo_lug_boot = ttk.Combobox(frame, values=list(encoders['lug_boot'].classes_))
-combo_lug_boot.grid(row=5, column=1)
+p_spam = len(spam_emails) / len(df)
+p_nonspam = len(nonspam_emails) / len(df)
 
-# 6. Safety
-ttk.Label(frame, text="Safety:").grid(row=6, column=0, sticky=tk.W, pady=5)
-combo_safety = ttk.Combobox(frame, values=list(encoders['safety'].classes_))
-combo_safety.grid(row=6, column=1)
+data = []
 
+for word in all_words:
+    p_word_given_spam = spam_counts[word] / total_spam_words if total_spam_words > 0 else 0
+    p_word_given_nonspam = nonspam_counts[word] / total_nonspam_words if total_nonspam_words > 0 else 0
+    p_word = (spam_counts[word] + nonspam_counts[word]) / total_words if total_words > 0 else 0
 
-# --- Tombol Prediksi ---
-tombol_prediksi = ttk.Button(frame, text="Prediksi Sekarang", command=lakukan_prediksi)
-tombol_prediksi.grid(row=7, column=0, columnspan=2, pady=20)
+    # Bayes probability
+    if p_word > 0:
+        p_spam_given_word = (p_word_given_spam * p_spam) / p_word
+        p_nonspam_given_word = (p_word_given_nonspam * p_nonspam) / p_word
+    else:
+        p_spam_given_word = 0
 
-# --- Label Hasil ---
-label_hasil = ttk.Label(frame, text="Hasil akan muncul di sini", font=("Helvetica", 12))
-label_hasil.grid(row=8, column=0, columnspan=2)
+    data.append({
+        "word": word,
+        "count_in_spam": spam_counts[word],
+        "count_in_nonspam": nonspam_counts[word],
+        "P(word)" : round(p_word,6),
+        "P(non-spam)" : round(p_nonspam,6),
+        "P(spam)" : round(p_spam,6),
+        "P(word|spam)" : round(p_word_given_spam,6),
+        "P(word|nonspam)" : round(p_word_given_nonspam,6),
+        "P(spam|word)": round(p_spam_given_word, 6),
+        "P(non_spam|word)" : round(p_nonspam_given_word,6)
+    })
 
-# --- Menjalankan UI ---
-root.mainloop()
+# menyimpan hasil ke CSV
+df_bayes = pd.DataFrame(data)
+df_bayes.sort_values(by="P(spam|word)", ascending=False, inplace=True)
+df_bayes.to_csv("emails_bayes.csv", index=False)
+
+print("✅ Hasil disimpan di 'emails_bayes.csv'")
+print(df_bayes.head(20))
